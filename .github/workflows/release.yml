@@ -1,44 +1,35 @@
-name: Release
+name: "Release"
 
 on:
   release:
-    types: [published]
+    types:
+      - "published"
+
+permissions: {}
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    name: "Release"
+    runs-on: "ubuntu-latest"
     permissions:
       contents: write
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: "Checkout the repository"
+        uses: "actions/checkout@v5.0.0"
 
-      - name: Compute VERSION (strip leading v)
-        shell: bash
+      - name: "Adjust version number"
+        shell: "bash"
         run: |
-          VERSION="${{ github.event.release.tag_name }}"
-          VERSION="${VERSION#v}"
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          yq -i -o json '.version="${{ github.event.release.tag_name }}"' \
+            "${{ github.workspace }}/custom_components/saj_modbus/manifest.json"
 
-      - name: Set manifest.json version from tag
-        shell: bash
+      - name: "ZIP the integration directory"
+        shell: "bash"
         run: |
-          FILE="${{ github.workspace }}/custom_components/saj_modbus/manifest.json"
-          tmp="$(mktemp)"
-          jq --arg v "$VERSION" '.version=$v' "$FILE" > "$tmp" && mv "$tmp" "$FILE"
-          jq -r '.version' "$FILE"
+          cd "${{ github.workspace }}/custom_components/saj_modbus"
+          zip home-assistant-saj-r6-modbus.zip -r ./
 
-      - name: Create release asset zip (includes folder path)
-        shell: bash
-        run: |
-          cd "${{ github.workspace }}"
-          ASSET="home-assistant-saj-r6-modbus-${VERSION}.zip"
-          # Zip the folder so HACS can place it under custom_components/saj_modbus
-          zip -r "$ASSET" custom_components/saj_modbus -x "**/__pycache__/*" "**/*.pyc" ".DS_Store"
-          echo "ASSET=$ASSET" >> "$GITHUB_ENV"
-
-      - name: Upload asset to the GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: "Upload the ZIP file to the release"
+        uses: softprops/action-gh-release@v2.3.3
         with:
-          files: ${{ env.ASSET }}
+          files: ${{ github.workspace }}/custom_components/saj_modbus/home-assistant-saj-r6-modbus.zip
